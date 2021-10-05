@@ -7,30 +7,63 @@ from test_problems import get_pokemon_problem
 
 #### Part 1: Warmup ############################################################
 
-def has_empty_domains(csp) :
+def has_empty_domains(csp):
     """Returns True if the problem has one or more empty domains, otherwise False"""
-    raise NotImplementedError
+    for variable in csp.variables:
+        if not len(csp.get_domain(variable)):
+            return True
+    return False
 
-def check_all_constraints(csp) :
+
+def check_all_constraints(csp):
     """Return False if the problem's assigned values violate some constraint,
     otherwise True"""
-    raise NotImplementedError
+    for constraint in csp.get_all_constraints():
+        value1 = csp.assignments.get(constraint.var1, None)
+        value2 = csp.assignments.get(constraint.var2, None)
+        if value1 is not None and value2 is not None and not constraint.check(value1, value2):
+            return False
+    return True
 
 
 #### Part 2: Depth-First Constraint Solver #####################################
 
-def solve_constraint_dfs(problem) :
+def solve_constraint_dfs(problem):
     """
     Solves the problem using depth-first search.  Returns a tuple containing:
     1. the solution (a dictionary mapping variables to assigned values)
     2. the number of extensions made (the number of problems popped off the agenda).
     If no solution was found, return None as the first element of the tuple.
     """
-    raise NotImplementedError
+    agenda = [problem]
+    ext_count = 0
+
+    while agenda:
+        ext_count += 1
+        problem = agenda.pop(0)
+        if not check_all_constraints(problem) or has_empty_domains(problem):
+            continue
+        if check_all_constraints(problem):
+            if len(problem.unassigned_vars) == 0:
+                return problem.assignments, ext_count
+
+            else:
+                var = problem.pop_next_unassigned_var()
+                new_problems = []
+                for val in problem.get_domain(var):
+                    new_problem = problem.copy()
+                    new_problem.set_assignment(var, val)
+                    new_problems.append(new_problem)
+
+                agenda = new_problems + agenda
+    return None, ext_count
 
 
 # QUESTION 1: How many extensions does it take to solve the Pokemon problem
 #    with DFS?
+pokemon_problem = get_pokemon_problem()
+print (solve_constraint_dfs(pokemon_problem))
+print ("here")
 
 # Hint: Use get_pokemon_problem() to get a new copy of the Pokemon problem
 #    each time you want to solve it with a different search method.
@@ -40,7 +73,7 @@ ANSWER_1 = None
 
 #### Part 3: Forward Checking ##################################################
 
-def eliminate_from_neighbors(csp, var) :
+def eliminate_from_neighbors(csp, var):
     """
     Eliminates incompatible values from var's neighbors' domains, modifying
     the original csp.  Returns an alphabetically sorted list of the neighboring
@@ -50,10 +83,12 @@ def eliminate_from_neighbors(csp, var) :
     """
     raise NotImplementedError
 
+
 # Because names give us power over things (you're free to use this alias)
 forward_check = eliminate_from_neighbors
 
-def solve_constraint_forward_checking(problem) :
+
+def solve_constraint_forward_checking(problem):
     """
     Solves the problem using depth-first search with forward checking.
     Same return type as solve_constraint_dfs.
@@ -69,7 +104,7 @@ ANSWER_2 = None
 
 #### Part 4: Domain Reduction ##################################################
 
-def domain_reduction(csp, queue=None) :
+def domain_reduction(csp, queue=None):
     """
     Uses constraints to reduce domains, propagating the domain reduction
     to all neighbors whose domains are reduced during the process.
@@ -89,7 +124,7 @@ def domain_reduction(csp, queue=None) :
 ANSWER_3 = None
 
 
-def solve_constraint_propagate_reduced_domains(problem) :
+def solve_constraint_propagate_reduced_domains(problem):
     """
     Solves the problem using depth-first search with forward checking and
     propagation through all reduced domains.  Same return type as
@@ -106,7 +141,7 @@ ANSWER_4 = None
 
 #### Part 5A: Generic Domain Reduction #########################################
 
-def propagate(enqueue_condition_fn, csp, queue=None) :
+def propagate(enqueue_condition_fn, csp, queue=None):
     """
     Uses constraints to reduce domains, modifying the original csp.
     Uses enqueue_condition_fn to determine whether to enqueue a variable whose
@@ -114,17 +149,20 @@ def propagate(enqueue_condition_fn, csp, queue=None) :
     """
     raise NotImplementedError
 
-def condition_domain_reduction(csp, var) :
+
+def condition_domain_reduction(csp, var):
     """Returns True if var should be enqueued under the all-reduced-domains
     condition, otherwise False"""
     raise NotImplementedError
 
-def condition_singleton(csp, var) :
+
+def condition_singleton(csp, var):
     """Returns True if var should be enqueued under the singleton-domains
     condition, otherwise False"""
     raise NotImplementedError
 
-def condition_forward_checking(csp, var) :
+
+def condition_forward_checking(csp, var):
     """Returns True if var should be enqueued under the forward-checking
     condition, otherwise False"""
     raise NotImplementedError
@@ -132,13 +170,14 @@ def condition_forward_checking(csp, var) :
 
 #### Part 5B: Generic Constraint Solver ########################################
 
-def solve_constraint_generic(problem, enqueue_condition=None) :
+def solve_constraint_generic(problem, enqueue_condition=None):
     """
     Solves the problem, calling propagate with the specified enqueue
     condition (a function). If enqueue_condition is None, uses DFS only.
     Same return type as solve_constraint_dfs.
     """
     raise NotImplementedError
+
 
 # QUESTION 5: How many extensions does it take to solve the Pokemon problem
 #    with forward checking and propagation through singleton domains? (Don't
@@ -149,17 +188,19 @@ ANSWER_5 = None
 
 #### Part 6: Defining Custom Constraints #######################################
 
-def constraint_adjacent(m, n) :
+def constraint_adjacent(m, n):
     """Returns True if m and n are adjacent, otherwise False.
     Assume m and n are ints."""
     raise NotImplementedError
 
-def constraint_not_adjacent(m, n) :
+
+def constraint_not_adjacent(m, n):
     """Returns True if m and n are NOT adjacent, otherwise False.
     Assume m and n are ints."""
     raise NotImplementedError
 
-def all_different(variables) :
+
+def all_different(variables):
     """Returns a list of constraints, with one difference constraint between
     each pair of variables."""
     raise NotImplementedError
