@@ -3,6 +3,7 @@
 import copy
 
 from constraint_api import *
+import itertools
 from test_problems import get_pokemon_problem
 
 
@@ -108,12 +109,33 @@ def solve_constraint_forward_checking(problem):
     Solves the problem using depth-first search with forward checking.
     Same return type as solve_constraint_dfs.
     """
-    raise NotImplementedError
+    queue = [problem]
+    extensions = 0
+    while queue:
+        extensions += 1
+        problem = queue.pop(0)
+        if not check_all_constraints(problem) or has_empty_domains(problem):
+            continue
+        if check_all_constraints(problem):
+            if len(problem.unassigned_vars) == 0:
+                return problem.assignments, extensions
+            else:
+                var = problem.pop_next_unassigned_var()
+                new_problems = []
+                for val in problem.get_domain(var):
+                    new_problem = problem.copy()
+                    new_problem.set_assignment(var, val)
+                    forward_check(new_problem, var)
+                    new_problems.append(new_problem)
+                queue = new_problems + queue
+    return None, extensions
 
 
 # QUESTION 2: How many extensions does it take to solve the Pokemon problem
 #    with DFS and forward checking?
-ANSWER_2 = None
+pokemon_problem = get_pokemon_problem()
+print(solve_constraint_forward_checking(pokemon_problem))
+ANSWER_2 = 9
 
 
 #### Part 4: Domain Reduction ##################################################
@@ -244,14 +266,36 @@ def solve_constraint_generic(problem, enqueue_condition=None):
     condition (a function). If enqueue_condition is None, uses DFS only.
     Same return type as solve_constraint_dfs.
     """
-    raise NotImplementedError
+    queue = [problem]
+    extensions = 0
+    while queue:
+        extensions += 1
+        problem = queue.pop(0)
+        if not check_all_constraints(problem) or has_empty_domains(problem):
+            continue
+
+        if check_all_constraints(problem):
+            if len(problem.unassigned_vars) == 0:
+                return problem.assignments, extensions
+            var = problem.pop_next_unassigned_var()
+            problems_list = []
+            for val in problem.get_domain(var):
+                new_problem = problem.copy()
+                new_problem.set_assignment(var, val)
+                if enqueue_condition is not None:
+                    propagate(enqueue_condition, new_problem, [var])
+                problems_list.append(new_problem)
+            queue = problems_list + queue
+    return None, extensions
 
 
 # QUESTION 5: How many extensions does it take to solve the Pokemon problem
 #    with forward checking and propagation through singleton domains? (Don't
 #    use domain reduction before solving it.)
 
-ANSWER_5 = None
+pokemon_problem = get_pokemon_problem()
+print(solve_constraint_generic(pokemon_problem, condition_forward_checking))
+ANSWER_5 = 8
 
 
 #### Part 6: Defining Custom Constraints #######################################
@@ -259,26 +303,20 @@ ANSWER_5 = None
 def constraint_adjacent(m, n):
     """Returns True if m and n are adjacent, otherwise False.
     Assume m and n are ints."""
-    raise NotImplementedError
+    return True if abs(m - n) == 1 else False
 
 
 def constraint_not_adjacent(m, n):
     """Returns True if m and n are NOT adjacent, otherwise False.
     Assume m and n are ints."""
-    raise NotImplementedError
+    return not constraint_adjacent(m, n)
 
 
 def all_different(variables):
     """Returns a lists of constraints, with one difference constraint between
     each pair of variables."""
-    raise NotImplementedError
-
-
-#### SURVEY ####################################################################
-
-NAME = None
-COLLABORATORS = None
-HOW_MANY_HOURS_THIS_LAB_TOOK = None
-WHAT_I_FOUND_INTERESTING = None
-WHAT_I_FOUND_BORING = None
-SUGGESTIONS = None
+    combinations = list(set(itertools.combinations(variables, 2)))
+    result = []
+    for elem in combinations:
+        result.append(Constraint(elem[0], elem[1], constraint_different))
+    return result
