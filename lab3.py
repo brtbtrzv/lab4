@@ -1,5 +1,6 @@
 # MIT 6.034 Lab 3: Constraint Satisfaction Problems
 # Written by 6.034 staff
+import copy
 
 from constraint_api import *
 from test_problems import get_pokemon_problem
@@ -35,40 +36,33 @@ def solve_constraint_dfs(problem):
     2. the number of extensions made (the number of problems popped off the agenda).
     If no solution was found, return None as the first element of the tuple.
     """
-    agenda = [problem]
-    ext_count = 0
-
-    while agenda:
-        ext_count += 1
-        problem = agenda.pop(0)
+    queue = [problem]
+    extensions = 0
+    while len(queue) != 0:
+        extensions += 1
+        problem = queue.pop(0)
         if not check_all_constraints(problem) or has_empty_domains(problem):
             continue
         if check_all_constraints(problem):
             if len(problem.unassigned_vars) == 0:
-                return problem.assignments, ext_count
-
-            else:
-                var = problem.pop_next_unassigned_var()
-                new_problems = []
-                for val in problem.get_domain(var):
-                    new_problem = problem.copy()
-                    new_problem.set_assignment(var, val)
-                    new_problems.append(new_problem)
-
-                agenda = new_problems + agenda
-    return None, ext_count
+                return problem.assignments, extensions
+            var = problem.pop_next_unassigned_var()
+            problems_list = []
+            for val in problem.get_domain(var):
+                new_problem = copy.deepcopy(problem)
+                new_problem.set_assignment(var, val)
+                problems_list.append(new_problem)
+            queue = problems_list + queue
+    return None, extensions
 
 
 # QUESTION 1: How many extensions does it take to solve the Pokemon problem
 #    with DFS?
-pokemon_problem = get_pokemon_problem()
-print (solve_constraint_dfs(pokemon_problem))
-print ("here")
-
 # Hint: Use get_pokemon_problem() to get a new copy of the Pokemon problem
 #    each time you want to solve it with a different search method.
-
-ANSWER_1 = None
+pokemon_problem = get_pokemon_problem()
+print(solve_constraint_dfs(pokemon_problem))
+ANSWER_1 = 20
 
 
 #### Part 3: Forward Checking ##################################################
@@ -81,7 +75,28 @@ def eliminate_from_neighbors(csp, var):
     once.  If no domains were reduced, returns empty list.
     If a domain is reduced to size 0, quits immediately and returns None.
     """
-    raise NotImplementedError
+    result = []
+    for neighbor in csp.get_neighbors(var):
+        current_list = []
+        for domain_val in csp.get_domain(neighbor):
+            r = 0
+            for val in csp.get_domain(var):
+                flag = 1
+                for c in csp.constraints_between(var, neighbor):
+                    flag *= c.check(val, domain_val)
+                if flag:
+                    r = 1
+                    break
+            if r == 0:
+                current_list.append(domain_val)
+        for elem in current_list:
+            csp.eliminate(neighbor, elem)
+            if neighbor not in result:
+                result.append(neighbor)
+        if len(csp.get_domain(neighbor)) == 0:
+            return None
+    result = sorted(result)
+    return result
 
 
 # Because names give us power over things (you're free to use this alias)
@@ -98,7 +113,6 @@ def solve_constraint_forward_checking(problem):
 
 # QUESTION 2: How many extensions does it take to solve the Pokemon problem
 #    with DFS and forward checking?
-
 ANSWER_2 = None
 
 
@@ -111,17 +125,33 @@ def domain_reduction(csp, queue=None):
     If queue is None, initializes propagation queue by adding all variables in
     their default order. 
     Returns a list of all variables that were dequeued, in the order they
-    were removed from the queue.  Variables may appear in the list multiple times.
+    were removed from the queue.  Variables may appear in the lists multiple times.
     If a domain is reduced to size 0, quits immediately and returns None.
     This function modifies the original csp.
     """
-    raise NotImplementedError
+    answer = []
+    q = copy.deepcopy(queue)
+    if queue is None:
+        q = csp.get_all_variables()
+    while q:
+        var = q.pop(0)
+        answer.append(var)
+        list = eliminate_from_neighbors(csp, var)
+        if list:
+            for neighbor in list:
+                if neighbor not in q:
+                    q.append(neighbor)
+        if list is None:
+            return list
+    return answer
 
 
 # QUESTION 3: How many extensions does it take to solve the Pokemon problem
 #    with DFS (no forward checking) if you do domain reduction before solving it?
-
-ANSWER_3 = None
+pokemon_problem = get_pokemon_problem()
+domain_reduction(pokemon_problem)
+print(solve_constraint_dfs(pokemon_problem))
+ANSWER_3 = 6
 
 
 def solve_constraint_propagate_reduced_domains(problem):
@@ -130,13 +160,35 @@ def solve_constraint_propagate_reduced_domains(problem):
     propagation through all reduced domains.  Same return type as
     solve_constraint_dfs.
     """
-    raise NotImplementedError
+    queue = [problem]
+    extensions = 0
 
+    while queue:
+        extensions += 1
+        problem = queue.pop(0)
+        if check_all_constraints(problem) or not has_empty_domains(problem):
+            if check_all_constraints(problem):
+                if len(problem.unassigned_vars) == 0:
+                    return problem.assignments, extensions
+                else:
+                    var = problem.pop_next_unassigned_var()
+                    problems_list = []
+
+                    for val in problem.get_domain(var):
+                        new_problem = copy.deepcopy(problem)
+                        new_problem.set_assignment(var, val)
+                        domain_reduction(new_problem, [var])
+                        forward_check(new_problem, var)
+                        problems_list.append(new_problem)
+                    queue = problems_list + queue
+    return None, extensions
 
 # QUESTION 4: How many extensions does it take to solve the Pokemon problem
 #    with forward checking and propagation through reduced domains?
 
-ANSWER_4 = None
+pokemon_problem = get_pokemon_problem()
+print(solve_constraint_propagate_reduced_domains(pokemon_problem))
+ANSWER_4 = 7
 
 
 #### Part 5A: Generic Domain Reduction #########################################
@@ -147,25 +199,41 @@ def propagate(enqueue_condition_fn, csp, queue=None):
     Uses enqueue_condition_fn to determine whether to enqueue a variable whose
     domain has been reduced. Same return type as domain_reduction.
     """
-    raise NotImplementedError
+    answer = []
+    if queue is None:
+        queue = csp.get_all_variables()
+    while queue:
+        var = queue.pop(0)
+        answer.append(var)
+        eliminated_neighbors = forward_check(csp, var)
+        if eliminated_neighbors is None:
+            return None
+        for eliminated_neighbor in eliminated_neighbors:
+            if eliminated_neighbor not in queue and enqueue_condition_fn(csp, eliminated_neighbor):
+                queue.append(eliminated_neighbor)
+    return answer
 
 
 def condition_domain_reduction(csp, var):
     """Returns True if var should be enqueued under the all-reduced-domains
     condition, otherwise False"""
-    raise NotImplementedError
+    if not csp:
+        return True
+    return len(csp.get_domain(var)) == 0
 
 
 def condition_singleton(csp, var):
     """Returns True if var should be enqueued under the singleton-domains
     condition, otherwise False"""
-    raise NotImplementedError
+    if len(csp.get_domain(var)) == 1:
+        return True
+    return False
 
 
 def condition_forward_checking(csp, var):
     """Returns True if var should be enqueued under the forward-checking
     condition, otherwise False"""
-    raise NotImplementedError
+    return False
 
 
 #### Part 5B: Generic Constraint Solver ########################################
@@ -201,7 +269,7 @@ def constraint_not_adjacent(m, n):
 
 
 def all_different(variables):
-    """Returns a list of constraints, with one difference constraint between
+    """Returns a lists of constraints, with one difference constraint between
     each pair of variables."""
     raise NotImplementedError
 
